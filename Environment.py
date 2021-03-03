@@ -10,20 +10,32 @@ from Parameter import Parameter
 
 UNIT = 4   # pixels
 
-
+"""虚拟环境
+---
+:func reset: 重置环境
+:func step: 某AP的某天面执行某操作后进入下一个环境状态，返回features（以一维数据的形式输出整张RSRP地图）
+:func render: 输出渲染的canvas地图
+:func generate_AP_Map loadMap saveMap: 生成、加载、保存AP分布地图
+---
+:param isRender: 是否自动渲染canvas
+:param action_space: 行为空间
+:param n_actions: 行为空间尺寸
+:param n_features: 输出尺寸
+"""
 class Environment(tk.Tk, object):
-    def __init__(self, param: Parameter):
+    def __init__(self, param: Parameter, isRender: False):
         super(Environment, self).__init__()
 
         self.param = param
+        self.isRender = isRender
+
         self.action_space = [i for i in range(-10, 10, 1)]      # 可逆时针调整10度 到顺时针调整10度
         self.n_actions = len(self.action_space)                 # 总的行为数
         self.n_features = self.param.xSize * self.param.ySize   # 输出的尺寸（以一维数据的形式输出整张地图，因此尺寸为x*y）
         self.title('RSRP Map of 5G Access Network')
         self.geometry(f'{self.param.xSize * UNIT}x{self.param.ySize * UNIT}')
-
-        self.ap_ovals = []      # 保存画布上绘制的ap
-        self.rssi_rects = []    # 保存画布上绘制的每个格子
+        self.ap_ovals = []      # 保存画布上绘制的ap（圆点）
+        self.rssi_rects = []    # 保存画布上绘制的RSRP（方格）
 
         self._init_map()
 
@@ -33,11 +45,11 @@ class Environment(tk.Tk, object):
             print("Warning: 未初始化AP分布地图，将进行随机生成！")
             self.generate_AP_Map()
         # 初始化覆盖地图
-        self.cal_covered_map()
+        covered_map, self.param.rsrp_map = self.cal_covered_map()
         # 构建地图
-        self._build_map()
+        self._build_map_canvas()
 
-    def _build_map(self):
+    def _build_map_canvas(self):
         MAZE_H = self.param.ySize
         MAZE_W = self.param.xSize
         self.canvas = tk.Canvas(self, bg='white',
@@ -51,23 +63,23 @@ class Environment(tk.Tk, object):
             x0, y0, x1, y1 = 0, r, MAZE_W * UNIT, r
             self.canvas.create_line(x0, y0, x1, y1)
 
-        # 绘制每个点的信号强度
-        self.draw_RSSI_graph()
+        if self.isRender:
+            # 绘制每个点的信号强度
+            self.draw_RSSI_graph()
+            # 绘制基站
+            self.draw_AP_Loc()
 
-        # 绘制基站
-        self.draw_AP_Loc()
-
-        # pack all
-        self.canvas.pack()
+            self.canvas.pack()
+            self.mainloop()
 
     '''绘制地图上每个方格的RSSI颜色
-    [-65, +∞):    蓝色   0,4,247
-    [-75, -65):   湛蓝   0,103,232
-    [-85, -75):   道奇蓝 74,137,254
-    [-95, -85):   天蓝   122,209,244  
-    [-105, -95):  黄色   255,248,12
-    [-115, -105): 橙色   255,138,22
-    [-∞, -115):   红色   255,6,0
+    [-65, +∞):    蓝色   #0005F6
+    [-75, -65):   湛蓝   #0064EF
+    [-85, -75):   深天蓝  #00B3FB
+    [-95, -85):   亮天蓝  #72DEFF 
+    [-105, -95):  yellow
+    [-115, -105): orange
+    [-∞, -115):   red
     '''
     def draw_RSSI_graph(self):
         # 清空图上绘制的点
@@ -75,7 +87,25 @@ class Environment(tk.Tk, object):
             self.canvas.delete(rect)
             self.rssi_rects.remove(rect)
         # 在图上绘制新点
-        pass
+        for x in range(self.param.xSize):
+            for y in range(self.param.ySize):
+                rsrp_level = self.param.rsrp_level(x, y)
+                if rsrp_level == 1:
+                    color = '#0005F6'
+                elif rsrp_level == 2:
+                    color = '#0064EF'
+                elif rsrp_level == 3:
+                    color = '#00B3FB'
+                elif rsrp_level == 4:
+                    color = '#72DEFF'
+                elif rsrp_level == 5:
+                    color = 'yellow'
+                elif rsrp_level == 6:
+                    color = 'orange'
+                else:
+                    color = 'red'
+                rect = self.canvas.create_rectangle(x*UNIT, y*UNIT, (x+1)*UNIT, (y+1)*UNIT, fill=color)
+                self.rssi_rects.append(rect)
 
     '''绘制AP的位置
     在图上用原点标出所有的AP
@@ -87,17 +117,44 @@ class Environment(tk.Tk, object):
             self.canvas.delete(oval)
             self.ap_ovals.remove(oval)
         # 在图上绘制新点
-        pass
+        for j in range(self.param.M):
+            if j == ap:
+                color = 'white'
+            else:
+                color = 'black'
+            oval = self.canvas.create_rectangle(x*UNIT, y*UNIT, (x+1)*UNIT, (y+1)*UNIT, fill=color)
+            self.ap_ovals.append(oval)
 
     def reset(self):
-        pass
+        self.param.init_parameters()
+        self._init_map()
 
-    def step(self, action, ap: int, antenna: int):
-        # 需要指定该环境下执行决策的AP编号与天面编号
-        pass
+    '''进入下一个状态
+    :param ap: 执行当前动作的AP
+    :param antenna: 执行当前动作的天面(0~2)
+    :param azimuth_act: 方位角调整策略（从action_space选择一个角度进行调整）
+    :param pitch_act: 俯仰角调整策略（从action_space选择一个角度进行调整）
+    '''
+    def step(self, ap: int, antenna: int, azimuth_act: int, pitch_act: int):
+        # 执行动作
+        ha = azimuth_act + self.param.antenna_horizontal_angle[ap][antenna]
+        va = pitch_act + self.param.antenna_vertical_angle[ap][antenna]
+        hab = self.param.antenna_horizontal_angle_bound[ap][antenna]
+        vab = self.param.antenna_veritical_angle_bound[ap][antenna]
+        if hab[0] <= ha <= hab[1]:
+            self.param.antenna_horizontal_angle[ap][antenna] = ha
+        if vab[0] <= va <= vab[1]:
+            self.param.antenna_vertical_angle[ap][antenna] = va
+        # 计算rsrp地图
+        covered_map, self.param.rsrp_map = self.cal_covered_map()
+        # 渲染
+        if self.isRender:
+            self.render(ap=ap)
 
-    def render(self):
+    def render(self, ap=-1):
         # time.sleep(0.01)
+        self.draw_RSSI_graph()
+        self.draw_AP_Loc(ap=ap)
         self.update()
 
     '''生成AP的分布地图'''
@@ -200,7 +257,7 @@ class Environment(tk.Tk, object):
                 # 2.1 估算覆盖强度等级，每有一个基站信号就以1/8的概率降低覆盖强度
                 covered_num = len(covered_map[x][y])
                 if covered_num == 0:
-                    level = 6
+                    level = 7
                 else:
                     level = 1   # 最低1: -65, 最高6: -115
                     for k in range(covered_num):
@@ -212,6 +269,6 @@ class Environment(tk.Tk, object):
                 mu = -65. - 10.*level + np.random.randint(0, 10)
                 sigma = 3. * covered_num
                 rand = np.random.normal(loc=mu, scale=sigma, size=1)
-                rsrp_map[x][y] = max(min(rand, -65.), -115.)
+                rsrp_map[x][y] = max(rand, -125.)
 
         return covered_map, rsrp_map

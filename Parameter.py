@@ -53,3 +53,22 @@ class Parameter(object):
                 self.antenna_vertical_angle[j][i] = 45.
                 self.antenna_horizontal_angle_bound[j][i] = [ha - 60., ha + 60.]
                 self.antenna_veritical_angle_bound[j][i] = [vr/2, 90. - vr/2]
+
+    '''获取RSRP评级
+    :param x,y: 坐标
+    [-65, +∞):    level 1
+    [-75, -65):   level 2
+    [-85, -75):   level 3
+    [-95, -85):   level 4
+    [-105, -95):  level 5
+    [-115, -105): level 6
+    [-∞, -115):   level 7
+    '''
+    def rsrp_level(self, x: int, y: int):
+        rssi = self.rsrp_map[x][y]
+        rssi += 65
+        level = 1
+        while rssi < 0:
+            rssi += 10
+            level += 1
+        return level
