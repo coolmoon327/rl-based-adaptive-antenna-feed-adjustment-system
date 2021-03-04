@@ -1,5 +1,6 @@
 import numpy as np
 import time
+import copy
 import sys
 if sys.version_info.major == 2:
     import Tkinter as tk
@@ -8,7 +9,8 @@ else:
 
 from Parameter import Parameter
 
-UNIT = 4   # pixels
+UNIT = 10   # pixels
+
 
 """虚拟环境
 ---
@@ -21,6 +23,8 @@ UNIT = 4   # pixels
 :param action_space: 行为空间
 :param n_actions: 行为空间尺寸
 :param n_features: 输出尺寸
+---
+注意，canvas的(0, 0)是左上角，而我们计算中默认原点在左下角，调试中需要留意
 """
 class Environment(tk.Tk, object):
     def __init__(self, param: Parameter, isRender: False):
@@ -43,7 +47,7 @@ class Environment(tk.Tk, object):
         # 初始化参数
         if np.sum(self.param.AP_loc, axis=0)[0] == 0:
             print("Warning: 未初始化AP分布地图，将进行随机生成！")
-            self.generate_AP_Map()
+            self.param.generate_AP_Map()
         # 初始化覆盖地图
         covered_map, self.param.rsrp_map = self.cal_covered_map()
         # 构建地图
@@ -67,7 +71,7 @@ class Environment(tk.Tk, object):
             # 绘制每个点的信号强度
             self.draw_RSSI_graph()
             # 绘制基站
-            self.draw_AP_Loc()
+            self.draw_AP_Loc(ap=-1)
 
             self.canvas.pack()
             self.mainloop()
@@ -122,7 +126,8 @@ class Environment(tk.Tk, object):
                 color = 'white'
             else:
                 color = 'black'
-            oval = self.canvas.create_rectangle(x*UNIT, y*UNIT, (x+1)*UNIT, (y+1)*UNIT, fill=color)
+            x, y = self.param.AP_loc[j]
+            oval = self.canvas.create_oval(x*UNIT, y*UNIT, (x+1)*UNIT, (y+1)*UNIT, fill=color)
             self.ap_ovals.append(oval)
 
     def reset(self):
@@ -146,53 +151,19 @@ class Environment(tk.Tk, object):
         if vab[0] <= va <= vab[1]:
             self.param.antenna_vertical_angle[ap][antenna] = va
         # 计算rsrp地图
-        covered_map, self.param.rsrp_map = self.cal_covered_map()
+        covered_map, rsrp_map = self.cal_covered_map()
         # 渲染
         if self.isRender:
             self.render(ap=ap)
+
+        self.param.rsrp_mapb =copy.deepcopy(rsrp_map)
+        return rsrp_map.reshape((1, -1))[0]
 
     def render(self, ap=-1):
         # time.sleep(0.01)
         self.draw_RSSI_graph()
         self.draw_AP_Loc(ap=ap)
         self.update()
-
-    '''生成AP的分布地图'''
-    def generate_AP_Map(self):
-        xSize = self.param.xSize
-        ySize = self.param.ySize
-        interval = self.param.interval
-        spacing = np.ceil(np.sqrt(min(xSize, ySize)))   # 要与各边留一个间距
-
-        if min(xSize, ySize) <= 2*spacing:
-            print("地图尺寸过小，生成AP分布图失败。")
-            exit(0)
-
-        # Generate APs
-        for j in range(self.param.M):
-            while 1:
-                xj = np.random.randint(spacing, xSize - spacing)
-                yj = np.random.randint(spacing, ySize - spacing)
-                isExist = False
-                for [x, y] in self.param.AP_loc:
-                    if x == xj and y == yj:
-                        isExist = True
-                        break
-                if not isExist:
-                    self.param.AP_loc[j] = [xj, yj]
-                    break
-        print('Success to generate map!\n')
-
-    '''从文件中读取AP与UE的分布地图'''
-    def loadMap(self, filename: str):
-        npzfile = np.load('data/'+filename)
-        self.param.AP_loc = npzfile['arr_0']
-        print('Success to load map!')
-
-    '''将AP与UE的分布地图保存到文件'''
-    def saveMap(self, filename: str):
-        np.savez('data/'+filename, self.param.AP_loc)
-        print('Success to save map!\n')
 
     '''计算覆盖地图
     :return [covered_map, rsrp_map]: 返回每个点被辐射到的基站列表，以及每个点接收信号的RSRP值
@@ -202,9 +173,9 @@ class Environment(tk.Tk, object):
         M = param.M
         # 记录每个点有多少基站覆盖，covered_map[x][y]记录一个点上能够接收到信号的所有基站编号
         # 只需要记录基站而不需要天面，因为只用得到基站要与点之间的距离参数
-        covered_map = np.array([[[] for _ in range(self.ySize)] for _ in range(self.xSize)])
+        covered_map = [[[] for _ in range(param.ySize)] for _ in range(param.xSize)]
         # 记录每个点的信号质量，rsrp_map[x][y]记录一个点上当前信道的RSRP值
-        rsrp_map = np.array([[0. for _ in range(self.ySize)] for _ in range(self.xSize)])
+        rsrp_map = np.array([[0. for _ in range(param.ySize)] for _ in range(param.xSize)])
 
         # 1. 枚举每个基站的每个天面，找到它们现在辐射到的所有区域，并给对应点的covered_map列表中添加上基站j
         for j in range(M):
@@ -216,26 +187,29 @@ class Environment(tk.Tk, object):
                 h = param.AP_height[j]
                 x_j, y_j = param.AP_loc[j]
 
-                # 1.1 计算打到地面上的最小半径与最大半径
+                # 1.1 计算打到地面上的最小半径与最大半径，单位interval
                 inner_angle = (va - vr/2.) % 360 / 180 * np.pi
-                inner_radius = h * np.tan(inner_angle)
+                inner_radius = h * np.tan(inner_angle) / param.interval
                 outer_angle = (va + vr/2.) % 360 / 180 * np.pi
-                outer_radius = h * np.tan(outer_angle)
+                outer_radius = min(h * np.tan(outer_angle), 300) / param.interval
 
                 # 1.2 计算打到地面上的圆弧两边角度（以AP为圆心，正北为0度）
                 left_angle = (ha - hr/2.) % 360 / 180 * np.pi
                 right_angle = (ha + hr/2.) % 360 / 180 * np.pi
 
                 # 1.3 以AP为圆心，枚举一个以最大直径为边的矩形区域，判断其中的点是否在1.2与1.3计算的范围内（可优化）
-                x_min = np.max(0, x_j - outer_radius)
-                x_max = np.min(param.xSize - 1, x_j + outer_radius)
-                y_min = np.max(0, y_j - outer_radius)
-                y_max = np.min(param.ySize - 1, y_j + outer_radius)
+                x_min = int(np.ceil(max(0, x_j - outer_radius)))
+                x_max = int(np.floor(min(param.xSize - 1, x_j + outer_radius)))
+                y_min = int(np.ceil(max(0, y_j - outer_radius)))
+                y_max = int(np.floor(min(param.ySize - 1, y_j + outer_radius)))
                 for x in range(x_min, x_max + 1):
                     for y in range(y_min, y_max + 1):
                         # 计算(x, y)与(x_j, y_j)连线的角度（以AP为圆心，正北为0度）
-                        angle = np.arctan((x - x_j) / (y - y_j))
-                        # 计算(x, y)与(x_j, y_j)连线的距离
+                        if y == y_j:
+                            angle = np.pi/2 if x > x_j else 3*np.pi/2
+                        else:
+                            angle = np.arctan((x - x_j) / (y - y_j))
+                        # 计算(x, y)与(x_j, y_j)连线的距离，单位interval
                         dist = np.sqrt((x-x_j)**2 + (y-y_j)**2)
                         if y >= y_j:
                             angle = angle % (2 * np.pi)
@@ -260,10 +234,11 @@ class Environment(tk.Tk, object):
                     level = 7
                 else:
                     level = 1   # 最低1: -65, 最高6: -115
-                    for k in range(covered_num):
+                    for k in range(max(0, covered_num-1)):
                         rand = np.random.randint(0, 8)
                         if rand == 0:
-                            level += 1 if level < 6 else 0
+                            ladd = np.random.randint(0, max(0, 7-level))
+                            level += ladd if level < 6 else 0
 
                 # 2.2 高斯采样出RSRP值
                 mu = -65. - 10.*level + np.random.randint(0, 10)
