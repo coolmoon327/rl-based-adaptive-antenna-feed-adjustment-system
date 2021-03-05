@@ -18,6 +18,7 @@ class Parameter(object):
         self.xSize = xSize                                          # 地图的宽度（以一个矩形区域为单位进行训练）
         self.ySize = ySize                                          # 地图的高度
         self.M = M                                                  # AP数量
+        self.maxRange = 300                                         # 覆盖距离上限
 
         '''天馈参数'''
         self.AP_loc = np.array([[0., 0.] for _ in range(self.M)])   # 基站j在图中的横纵坐标
@@ -53,7 +54,8 @@ class Parameter(object):
                 self.antenna_horizontal_angle[j][i] = ha
                 self.antenna_vertical_angle[j][i] = 45.
                 self.antenna_horizontal_angle_bound[j][i] = [ha - 60., ha + 60.]
-                self.antenna_veritical_angle_bound[j][i] = [vr/2, 90. - vr/2]
+                max_vab = min(np.arctan(self.maxRange/self.AP_height[j]), 90.) - vr/2
+                self.antenna_veritical_angle_bound[j][i] = [vr/2, max_vab]
 
     '''获取RSRP评级
     :param x,y: 坐标
@@ -92,7 +94,7 @@ class Parameter(object):
         inner_angle = 0.
         inner_radius = 0.
         outer_angle = (vab[1] + vr / 2.) % 360 / 180 * np.pi
-        outer_radius = min(h * np.tan(outer_angle), 300) / self.interval
+        outer_radius = min(h * np.tan(outer_angle), self.maxRange) / self.interval
 
         # 1.2 计算打到地面上的圆弧两边角度（以AP为圆心，正北为0度）
         left_angle = (hab[0] - hr / 2.) % 360 / 180 * np.pi

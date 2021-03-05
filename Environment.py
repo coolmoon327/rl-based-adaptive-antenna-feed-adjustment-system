@@ -191,13 +191,13 @@ class Environment(tk.Tk, object):
                 inner_angle = (va - vr/2.) % 360 / 180 * np.pi
                 inner_radius = h * np.tan(inner_angle) / param.interval
                 outer_angle = (va + vr/2.) % 360 / 180 * np.pi
-                outer_radius = min(h * np.tan(outer_angle), 300) / param.interval
+                outer_radius = min(h * np.tan(outer_angle), param.maxRange) / param.interval
 
                 # 1.2 计算打到地面上的圆弧两边角度（以AP为圆心，正北为0度）
                 left_angle = (ha - hr/2.) % 360 / 180 * np.pi
                 right_angle = (ha + hr/2.) % 360 / 180 * np.pi
 
-                # 1.3 以AP为圆心，枚举一个以最大直径为边的矩形区域，判断其中的点是否在1.2与1.3计算的范围内（可优化）
+                # 1.3 以AP为圆心，枚举一个以最大直径为边的矩形区域，判断其中的点是否在1.2与1.3计算的范围内（可优化，但最多也就枚举1000个点）
                 x_min = int(np.ceil(max(0, x_j - outer_radius)))
                 x_max = int(np.floor(min(param.xSize - 1, x_j + outer_radius)))
                 y_min = int(np.ceil(max(0, y_j - outer_radius)))
