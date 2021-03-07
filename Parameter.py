@@ -21,20 +21,20 @@ class Parameter(object):
         self.maxRange = 300                                         # 覆盖距离上限
 
         '''天馈参数'''
-        self.AP_loc = np.array([[0., 0.] for _ in range(self.M)])   # 基站j在图中的横纵坐标
+        self.AP_loc = np.array([[0, 0] for _ in range(self.M)])   # 基站j在图中的横纵坐标
         self.AP_height = np.array([0. for _ in range(self.M)])      # 基站j的高度
 
         self.antenna_horizontal_range = np.array([[0. for _ in range(3)] for _ in range(self.M)])
-        # 基站j的0～2号天面的水平覆盖范围antenna_horizontal_range[a][antenna]
+        # 基站j的0～2号天面的水平覆盖范围antenna_horizontal_range[ap][antenna]
         self.antenna_horizontal_angle = np.array([[0. for _ in range(3)] for _ in range(self.M)])
-        # 基站j的0～2号天面的水平方位角antenna_horizontal_angle[a][antenna]
+        # 基站j的0～2号天面的水平方位角antenna_horizontal_angle[ap][antenna]
         self.antenna_vertical_range = np.array([[0. for _ in range(3)] for _ in range(self.M)])
-        # 基站j的0～2号天面的竖直覆盖范围antenna_vertical_range[a][antenna]
+        # 基站j的0～2号天面的竖直覆盖范围antenna_vertical_range[ap][antenna]
         self.antenna_vertical_angle = np.array([[0. for _ in range(3)] for _ in range(self.M)])
-        # 基站j的0～2号天面的竖直俯仰角antenna_vertical_angle[a][antenna]
+        # 基站j的0～2号天面的竖直俯仰角antenna_vertical_angle[ap][antenna]
 
         self.antenna_horizontal_angle_bound = np.array([[[0., 0.] for _ in range(3)] for _ in range(self.M)])
-        # antenna_horizontal_angle_bound[a][antenna]是一个二元组[left, right]，代表天线最小和最大可以调整到的角度边界
+        # antenna_horizontal_angle_bound[ap][antenna]是一个二元组[left, right]，代表天线最小和最大可以调整到的角度边界
         self.antenna_veritical_angle_bound = np.array([[[0., 0.] for _ in range(3)] for _ in range(self.M)])
 
         '''覆盖数据'''
