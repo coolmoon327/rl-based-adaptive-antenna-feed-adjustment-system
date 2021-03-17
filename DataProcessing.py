@@ -98,7 +98,7 @@ class DataProcessing(object):
             if np.pi*1.5 <= a < np.pi*2:
                 y = lambda x: y_j - (x - x_j) * np.tan(a - np.pi*1.5)
                 dosage = -1
-            # 3.2 找出线性函数上的每一个整数坐标对(x, y)，依次按照从小到达的采样半径进行采样，采样RSRP保存进矩阵ans
+            # 3.2 找出线性函数上的每一个整数坐标对(x, y)，依次按照从小到大的采样半径进行采样，采样RSRP保存进矩阵ans
             temp_x = x_j
             dist = lambda x1, y1, x2, y2: np.sqrt((x1-x2)**2 + (y1-y2)**2)
             dist_from_ap = lambda x, y: dist(x, y, x_j, y_j)
@@ -121,6 +121,11 @@ class DataProcessing(object):
                     target_y = k
                 # 取rsrp_map(temp_x, target_y)填充到ans[i][j]中
                 ans[i][j] = param.rsrp_map[temp_x][target_y]
+
+            # 4. 处理ans矩阵，用近邻+线性预测的方法补全
+            # 以要补的点为中心，找到周围的一圈点，然后做一个三维的线性预测：离目标点距离为x轴、离基站距离为y轴，预测z轴的值
+            pass
+
         return ans
 
     '''计算潜在覆盖地图的reward
