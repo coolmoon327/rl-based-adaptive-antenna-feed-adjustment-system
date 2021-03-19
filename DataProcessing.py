@@ -5,10 +5,16 @@ from Parameter import Parameter
 预处理虚拟环境生成的RSRP地图，得到归一化后的observation
 '''
 class DataProcessing(object):
-    def __init__(self, param: Parameter, ap: int, antenna: int):
+    def __init__(self, param: Parameter, ap=0, antenna=0):
         self.param = param
-        self.ap = 0
-        self.antenna = 0
+        self.ap = ap
+        self.antenna = antenna
+
+        self.pitch_groups_num = 4          # 组数
+        self.pitch_group_samples_num = 5   # 每组样本数
+        self.pitch_samples_num = self.pitch_groups_num * self.pitch_group_samples_num    # 总样本点数
+        self.azimuth_sample_num = 20
+        self.n_features = self.pitch_samples_num * self.azimuth_sample_num
         self.pcovers = []
 
         self.set_agent(ap=ap, antenna=antenna)
@@ -24,13 +30,12 @@ class DataProcessing(object):
         '''
     def normalize_potential_coverage_observation(self):
         param = self.param
-        map = param.rsrp_map
 
         # 1. 计算出采样的半径列表
         # 暂定采样20个半径，按照一定规则切割俯仰角，划分成四个区，角度分配比例为1：2：3：4，每个区里等间距采样5个角度
-        pitch_groups_num = 4          # 组数
-        pitch_group_samples_num = 5   # 每组样本数
-        pitch_samples_num = pitch_groups_num * pitch_group_samples_num    # 总样本点数
+        pitch_groups_num = self.pitch_groups_num          # 组数
+        pitch_group_samples_num = self.pitch_group_samples_num   # 每组样本数
+        pitch_samples_num = self.pitch_samples_num    # 总样本点数
 
         # 1.1 计算总俯仰角度范围
         ap = self.ap
@@ -63,7 +68,7 @@ class DataProcessing(object):
 
         # 2. 计算出采样的水平角度列表
         # 同样采样20个角度，等比例划分
-        azimuth_sample_num = 20
+        azimuth_sample_num = self.azimuth_sample_num
 
         # 2.1 计算总方位角范围
         hr = param.antenna_horizontal_range[ap][antenna]
@@ -80,7 +85,7 @@ class DataProcessing(object):
         x_j, y_j = param.AP_loc[ap]
         ans = np.array([[-125. for _ in range(pitch_samples_num)] for _ in range(azimuth_sample_num)])
         for i in range(azimuth_sample_num):
-            a = azimuth_samples_angle[i] % 360. / 180 * np.pi
+            a = azimuth_samples_angle[i] % 360. / 180. * np.pi + 1e-6
             # 3.1 依次算出每个方位角对应的线性函数
             y = lambda x: x
             dosage = 1
@@ -112,6 +117,7 @@ class DataProcessing(object):
                     temp_y = y(temp_x)
                     next_x = temp_x + dosage
                     next_y = y(next_x)
+                    # print(temp_x, temp_y, next_x, next_y)
                 # 3.2.2 在(temp_x, temp_y)~(next_x, next_y)中找到采样点
                 # 从range(int(np.floor(temp_y)), int(np.ceil(next_y)))中枚举所有整数y，找到dist小于采样radius，且最近的target_y
                 target_y = np.floor(temp_y)
@@ -119,14 +125,22 @@ class DataProcessing(object):
                     if dist_from_ap(temp_x, k) > pitch_samples_radius[j]:
                         break
                     target_y = k
-                # 取rsrp_map(temp_x, target_y)填充到ans[i][j]中
-                ans[i][j] = param.rsrp_map[temp_x][target_y]
+                if 0 <= int(np.floor(temp_x)) < self.param.xSize and 0 <= int(np.floor(target_y)) < self.param.ySize:
+                    # 取rsrp_map(temp_x, target_y)填充到ans[i][j]中
+                    ans[i][j] = param.rsrp_map[int(np.floor(temp_x))][int(np.floor(target_y))]
+                else:
+                    # 对于边界以外的的点，可以采取多种措施处理
+                    # 此处暂且采取不处理的方式
+                    pass
 
             # 4. 处理ans矩阵，用近邻+线性预测的方法补全
             # 以要补的点为中心，找到周围的一圈点，然后做一个三维的线性预测：离目标点距离为x轴、离基站距离为y轴，预测z轴的值
             pass
 
-        return ans
+        # print(param.rsrp_map)
+        # print(ap, antenna, ans.shape, ans)
+
+        return ans.reshape(-1)
 
     '''计算潜在覆盖地图的reward
         :return ans: 返回归一化后的潜在覆盖地图
@@ -146,4 +160,19 @@ class DataProcessing(object):
                 ans += -4
             elif rsrp == 7:
                 ans += -8
-        return ans
+        return ans / len(self.pcovers)
+
+    def cal_total_reward(self):
+        ans = 0
+        for x in range(self.param.xSize):
+            for y in range(self.param.ySize):
+                rsrp = self.param.rsrp_level(x=x, y=y)
+                if rsrp <= 4:
+                    ans += 5 - rsrp
+                elif rsrp == 5:
+                    ans += -2
+                elif rsrp == 6:
+                    ans += -4
+                elif rsrp == 7:
+                    ans += -8
+        return ans / self.param.xSize * self.param.ySize

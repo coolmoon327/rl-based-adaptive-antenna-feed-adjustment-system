@@ -151,13 +151,18 @@ class MADDPG:
         return actions
 
     def load_networks(self):
-        actor_data = th.load('actor_net_params.pkl')
-        critic_data = th.load('critic_net_params.pkl')
-        for i in range(self.n_agents):
-            self.actors[i].load_state_dict(actor_data[i])
-            self.critics[i].load_state_dict(critic_data[i])
-            hard_update(self.actors_target[i], self.actors[i])
-            hard_update(self.critics_target[i], self.critics[i])
+        try:
+            actor_data = th.load('/data/actor_net_params.pkl')
+            critic_data = th.load('/data/critic_net_params.pkl')
+        except IOError:
+            print("Error: 没有找到文件或读取文件失败")
+        else:
+            for i in range(self.n_agents):
+                self.actors[i].load_state_dict(actor_data[i])
+                self.critics[i].load_state_dict(critic_data[i])
+                hard_update(self.actors_target[i], self.actors[i])
+                hard_update(self.critics_target[i], self.critics[i])
+            print("网络参数加载成功")
 
     def save_networks(self):
         actor_data = []
@@ -168,5 +173,5 @@ class MADDPG:
         for net in self.critics:
             state_dict = net.state_dict()
             critic_data.append(state_dict)
-        th.save(actor_data, 'actor_net_params.pkl')
-        th.save(critic_data, 'critic_net_params.pkl')
+        th.save(actor_data, '/data/actor_net_params.pkl')
+        th.save(critic_data, '/data/critic_net_params.pkl')

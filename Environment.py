@@ -33,8 +33,11 @@ class Environment(tk.Tk, object):
         self.param = param
         self.isRender = isRender
 
-        self.action_space = [i for i in range(-10, 10, 1)]      # 可逆时针调整10度 到顺时针调整10度
-        self.n_actions = len(self.action_space)                 # 总的行为数
+        self.azimuth_action_space = [i for i in range(-10, 10, 1)]      # 可逆时针调整10度 到顺时针调整10度
+        self.n_azimuth_actions = len(self.azimuth_action_space)         # 总的行为数
+        self.pitch_action_space = [i for i in range(-10, 10, 1)]  # 可逆时针调整10度 到顺时针调整10度
+        self.n_pitch_actions = len(self.pitch_action_space)  # 总的行为数
+
         self.n_features = self.param.xSize * self.param.ySize   # 输出的尺寸（以一维数据的形式输出整张地图，因此尺寸为x*y）
         self.title('RSRP Map of 5G Access Network')
         self.geometry(f'{self.param.xSize * UNIT}x{self.param.ySize * UNIT}')
@@ -42,6 +45,7 @@ class Environment(tk.Tk, object):
         self.rssi_rects = []    # 保存画布上绘制的RSRP（方格）
 
         self._init_map()
+        self.canvas = None
 
     def _init_map(self):
         # 初始化参数
@@ -50,31 +54,31 @@ class Environment(tk.Tk, object):
             self.param.generate_AP_Map()
         # 初始化覆盖地图
         covered_map, self.param.rsrp_map = self.cal_covered_map()
-        # 构建地图
-        self._build_map_canvas()
+        # # 构建地图
+        # self._build_map_canvas()
 
-    def _build_map_canvas(self):
-        MAZE_H = self.param.ySize
-        MAZE_W = self.param.xSize
-        self.canvas = tk.Canvas(self, bg='white',
-                                height=MAZE_H * UNIT,
-                                width=MAZE_W * UNIT)
-        # create grids
-        for c in range(0, MAZE_W * UNIT, UNIT):
-            x0, y0, x1, y1 = c, 0, c, MAZE_H * UNIT
-            self.canvas.create_line(x0, y0, x1, y1)
-        for r in range(0, MAZE_H * UNIT, UNIT):
-            x0, y0, x1, y1 = 0, r, MAZE_W * UNIT, r
-            self.canvas.create_line(x0, y0, x1, y1)
+    # def _build_map_canvas(self):
+    #     MAZE_H = self.param.ySize
+    #     MAZE_W = self.param.xSize
+    #     self.canvas = tk.Canvas(self, bg='white',
+    #                             height=MAZE_H * UNIT,
+    #                             width=MAZE_W * UNIT)
+        # # create grids
+        # for c in range(0, MAZE_W * UNIT, UNIT):
+        #     x0, y0, x1, y1 = c, 0, c, MAZE_H * UNIT
+        #     self.canvas.create_line(x0, y0, x1, y1)
+        # for r in range(0, MAZE_H * UNIT, UNIT):
+        #     x0, y0, x1, y1 = 0, r, MAZE_W * UNIT, r
+        #     self.canvas.create_line(x0, y0, x1, y1)
 
-        if self.isRender:
-            # 绘制每个点的信号强度
-            self.draw_RSSI_graph()
-            # 绘制基站
-            self.draw_AP_Loc(ap=-1)
-
-            self.canvas.pack()
-            self.mainloop()
+        # if self.isRender:
+        #     # 绘制每个点的信号强度
+        #     self.draw_RSSI_graph()
+        #     # 绘制基站
+        #     self.draw_AP_Loc(ap=-1)
+        #
+        #     self.canvas.pack()
+        #     # self.mainloop()
 
     '''绘制地图上每个方格的RSSI颜色
     [-65, +∞):    蓝色   #0005F6
@@ -86,11 +90,11 @@ class Environment(tk.Tk, object):
     [-∞, -115):   red
     '''
     def draw_RSSI_graph(self):
-        # 清空图上绘制的点
-        for rect in self.rssi_rects:
-            self.canvas.delete(rect)
-            self.rssi_rects.remove(rect)
-        # 在图上绘制新点
+        # # 清空图上绘制的点
+        # for rect in self.rssi_rects:
+        #     self.canvas.delete(rect)
+        #     self.rssi_rects.remove(rect)
+
         for x in range(self.param.xSize):
             for y in range(self.param.ySize):
                 rsrp_level = self.param.rsrp_level(x, y)
@@ -108,18 +112,25 @@ class Environment(tk.Tk, object):
                     color = 'orange'
                 else:
                     color = 'red'
-                rect = self.canvas.create_rectangle(x*UNIT, y*UNIT, (x+1)*UNIT, (y+1)*UNIT, fill=color)
-                self.rssi_rects.append(rect)
+
+                if len(self.rssi_rects) != self.param.xSize * self.param.ySize:
+                    # 在图上绘制新点
+                    rect = self.canvas.create_rectangle(x*UNIT, y*UNIT, (x+1)*UNIT, (y+1)*UNIT, fill=color)
+                    self.rssi_rects.append(rect)
+                else:
+                    index = x * self.param.ySize + y
+                    rect = self.rssi_rects[index]
+                    self.canvas.itemconfig(rect, fill=color)
 
     '''绘制AP的位置
     在图上用原点标出所有的AP
     :param ap: 传入当前执行决策的AP编号，若不为空，则将对应的点高亮
     '''
     def draw_AP_Loc(self, ap: -1):
-        # 清空图上绘制的点
-        for oval in self.ap_ovals:
-            self.canvas.delete(oval)
-            self.ap_ovals.remove(oval)
+        # # 清空图上绘制的点
+        # for oval in self.ap_ovals:
+        #     self.canvas.delete(oval)
+        #     self.ap_ovals.remove(oval)
         # 在图上绘制新点
         for j in range(self.param.M):
             if j == ap:
@@ -127,12 +138,17 @@ class Environment(tk.Tk, object):
             else:
                 color = 'black'
             x, y = self.param.AP_loc[j]
-            oval = self.canvas.create_oval(x*UNIT, y*UNIT, (x+1)*UNIT, (y+1)*UNIT, fill=color)
-            self.ap_ovals.append(oval)
+            if len(self.ap_ovals) != self.param.M:
+                oval = self.canvas.create_oval(x*UNIT, y*UNIT, (x+1)*UNIT, (y+1)*UNIT, fill=color)
+                self.ap_ovals.append(oval)
+            else:
+                oval = self.ap_ovals[j]
+                self.canvas.itemconfig(oval, fill=color)
 
     def reset(self):
         self.param.init_parameters()
         self._init_map()
+        return self.param.rsrp_map.reshape(1, -1)[0]
 
     '''进入下一个状态
     :param ap: 执行当前动作的AP
@@ -150,17 +166,25 @@ class Environment(tk.Tk, object):
             self.param.antenna_horizontal_angle[ap][antenna] = ha
         if vab[0] <= va <= vab[1]:
             self.param.antenna_vertical_angle[ap][antenna] = va
+
         # 计算rsrp地图
         covered_map, rsrp_map = self.cal_covered_map()
         # 渲染
-        if self.isRender:
-            self.render(ap=ap)
+        # if self.isRender:
+        #     self.render(ap=ap)
 
-        self.param.rsrp_mapb =copy.deepcopy(rsrp_map)
+        self.param.rsrp_map =copy.deepcopy(rsrp_map)
         return rsrp_map.reshape((1, -1))[0]
 
     def render(self, ap=-1):
         # time.sleep(0.01)
+        if self.canvas is None:
+            MAZE_H = self.param.ySize
+            MAZE_W = self.param.xSize
+            self.canvas = tk.Canvas(self, bg='white',
+                                    height=MAZE_H * UNIT,
+                                    width=MAZE_W * UNIT)
+        # self.canvas.delete(tk.ALL)
         self.draw_RSSI_graph()
         self.draw_AP_Loc(ap=ap)
         self.update()

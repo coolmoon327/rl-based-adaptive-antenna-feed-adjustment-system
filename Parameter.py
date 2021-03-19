@@ -54,7 +54,7 @@ class Parameter(object):
                 self.antenna_horizontal_angle[j][i] = ha
                 self.antenna_vertical_angle[j][i] = 45.
                 self.antenna_horizontal_angle_bound[j][i] = [ha - 60., ha + 60.]
-                max_vab = min(np.arctan(self.maxRange/self.AP_height[j]), 90.) - vr/2
+                max_vab = min(np.arctan(self.maxRange/self.AP_height[j])*180/np.pi, 90.) - vr/2
                 self.antenna_veritical_angle_bound[j][i] = [vr/2, max_vab]
 
     '''获取RSRP评级
