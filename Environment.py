@@ -33,9 +33,9 @@ class Environment(tk.Tk, object):
         self.param = param
         self.isRender = isRender
 
-        self.azimuth_action_space = [i for i in range(-10, 10, 1)]      # 可逆时针调整10度 到顺时针调整10度
+        self.azimuth_action_space = [i for i in range(-10, 11, 1)]      # 可逆时针调整10度 到顺时针调整10度
         self.n_azimuth_actions = len(self.azimuth_action_space)         # 总的行为数
-        self.pitch_action_space = [i for i in range(-10, 10, 1)]  # 可逆时针调整10度 到顺时针调整10度
+        self.pitch_action_space = [i for i in range(-10, 11, 1)]  # 可逆时针调整10度 到顺时针调整10度
         self.n_pitch_actions = len(self.pitch_action_space)  # 总的行为数
 
         self.n_features = self.param.xSize * self.param.ySize   # 输出的尺寸（以一维数据的形式输出整张地图，因此尺寸为x*y）
@@ -158,14 +158,24 @@ class Environment(tk.Tk, object):
     '''
     def step(self, ap: int, antenna: int, azimuth_act: int, pitch_act: int):
         # 执行动作
-        ha = azimuth_act + self.param.antenna_horizontal_angle[ap][antenna]
-        va = pitch_act + self.param.antenna_vertical_angle[ap][antenna]
-        hab = self.param.antenna_horizontal_angle_bound[ap][antenna]
-        vab = self.param.antenna_veritical_angle_bound[ap][antenna]
-        if hab[0] <= ha <= hab[1]:
+        ha = (azimuth_act + self.param.antenna_horizontal_angle[ap][antenna]) % 360
+        va = (pitch_act + self.param.antenna_vertical_angle[ap][antenna]) % 360
+        hab = self.param.antenna_horizontal_angle_bound[ap][antenna] % 360
+        vab = self.param.antenna_veritical_angle_bound[ap][antenna] % 360
+        if hab[0] <= hab[1]:
+            ha = max(ha, hab[0])
+            ha = min(ha, hab[1])
             self.param.antenna_horizontal_angle[ap][antenna] = ha
-        if vab[0] <= va <= vab[1]:
-            self.param.antenna_vertical_angle[ap][antenna] = va
+        else:
+            if hab[1] < ha < 180:
+                ha = hab[1]
+            elif 180 < ha < hab[0]:
+                ha = hab[0]
+            self.param.antenna_horizontal_angle[ap][antenna] = ha
+
+        va = max(va, vab[0])
+        va = min(va, vab[1])
+        self.param.antenna_vertical_angle[ap][antenna] = va
 
         # 计算rsrp地图
         covered_map, rsrp_map = self.cal_covered_map()
@@ -184,10 +194,13 @@ class Environment(tk.Tk, object):
             self.canvas = tk.Canvas(self, bg='white',
                                     height=MAZE_H * UNIT,
                                     width=MAZE_W * UNIT)
-        # self.canvas.delete(tk.ALL)
-        self.draw_RSSI_graph()
-        self.draw_AP_Loc(ap=ap)
-        self.update()
+            self.draw_RSSI_graph()
+            self.draw_AP_Loc(ap=ap)
+            self.canvas.pack()
+        else:
+            self.draw_RSSI_graph()
+            self.draw_AP_Loc(ap=ap)
+            self.update()
 
     '''计算覆盖地图
     :return [covered_map, rsrp_map]: 返回每个点被辐射到的基站列表，以及每个点接收信号的RSRP值

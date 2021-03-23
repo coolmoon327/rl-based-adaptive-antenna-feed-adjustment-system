@@ -11,9 +11,9 @@ class DataProcessing(object):
         self.antenna = antenna
 
         self.pitch_groups_num = 4          # 组数
-        self.pitch_group_samples_num = 5   # 每组样本数
+        self.pitch_group_samples_num = 3   # 每组样本数
         self.pitch_samples_num = self.pitch_groups_num * self.pitch_group_samples_num    # 总样本点数
-        self.azimuth_sample_num = 20
+        self.azimuth_sample_num = 12
         self.n_features = self.pitch_samples_num * self.azimuth_sample_num
         self.pcovers = []
 
@@ -175,4 +175,4 @@ class DataProcessing(object):
                     ans += -4
                 elif rsrp == 7:
                     ans += -8
-        return ans / self.param.xSize * self.param.ySize
+        return ans / (self.param.xSize * self.param.ySize)

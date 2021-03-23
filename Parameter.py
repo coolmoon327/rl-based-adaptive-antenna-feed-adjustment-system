@@ -157,9 +157,13 @@ class Parameter(object):
 
     '''从文件中读取AP与UE的分布地图'''
     def loadMap(self, filename: str):
-        npzfile = np.load('data/'+filename)
-        self.AP_loc = npzfile['arr_0']
-        print('Success to load map!')
+        try:
+            npzfile = np.load('data/'+filename)
+        except IOError:
+            print("Error: 没有找到文件或读取文件失败")
+        else:
+            self.AP_loc = npzfile['arr_0']
+            print('Success to load map!')
 
     '''将AP与UE的分布地图保存到文件'''
     def saveMap(self, filename: str):

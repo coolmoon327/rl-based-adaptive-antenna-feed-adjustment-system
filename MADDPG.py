@@ -143,7 +143,7 @@ class MADDPG:
 
             if self.episode_done > self.episodes_before_train and self.var[i] > 0.05:
                 self.var[i] *= 0.999998
-            act = th.clamp(act, -1.0, 1.0)
+            # act = th.clamp(act, -1.0, 1.0)
 
             actions[i, :] = act
         self.steps_done += 1
@@ -152,8 +152,8 @@ class MADDPG:
 
     def load_networks(self):
         try:
-            actor_data = th.load('/data/actor_net_params.pkl')
-            critic_data = th.load('/data/critic_net_params.pkl')
+            actor_data = th.load('data/actor_net_params.pkl')
+            critic_data = th.load('data/critic_net_params.pkl')
         except IOError:
             print("Error: 没有找到文件或读取文件失败")
         else:
@@ -173,5 +173,5 @@ class MADDPG:
         for net in self.critics:
             state_dict = net.state_dict()
             critic_data.append(state_dict)
-        th.save(actor_data, '/data/actor_net_params.pkl')
-        th.save(critic_data, '/data/critic_net_params.pkl')
+        th.save(actor_data, 'data/actor_net_params.pkl')
+        th.save(critic_data, 'data/critic_net_params.pkl')
