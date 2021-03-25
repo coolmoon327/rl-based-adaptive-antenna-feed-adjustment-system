@@ -1,5 +1,17 @@
 import numpy as np
 from Parameter import Parameter
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+
+
+# 训练模型并预测
+def reg_cal(data, label, test):
+    regr = LinearRegression()  # 线性回归
+    # regr = Ridge(alpha=10)   #岭回归
+    # regr = Lasso(alpha=0.001)  #Lasso回归
+    regr.fit(data, label)
+    return regr.predict(test)
+
 
 '''数据处理工具
 预处理虚拟环境生成的RSRP地图，得到归一化后的observation
@@ -130,12 +142,25 @@ class DataProcessing(object):
                     ans[i][j] = param.rsrp_map[int(np.floor(temp_x))][int(np.floor(target_y))]
                 else:
                     # 对于边界以外的的点，可以采取多种措施处理
-                    # 此处暂且采取不处理的方式
-                    pass
+                    # 将范围外的点设为-200，后面对-200的进行特殊处理
+                    ans[i][j] = -200.
 
             # 4. 处理ans矩阵，用近邻+线性预测的方法补全
             # 以要补的点为中心，找到周围的一圈点，然后做一个三维的线性预测：离目标点距离为x轴、离基站距离为y轴，预测z轴的值
-            pass
+            ap_x, ap_y = self.param.AP_loc[self.ap]
+            for i in range(azimuth_sample_num):
+                for j in range(pitch_samples_num):
+                    if ans[i][j] == -200.:
+                        data = []
+                        label = []
+                        for ii in range(max(0, i-5), min(self.param.xSize, i+5)):
+                            for jj in range(max(0, j-5), min(self.param.ySize, j+5)):
+                                if ans[ii][jj] != -200.:
+                                    dis_ij = np.sqrt((float(i-ii))**2 + (float(j-jj))**2)
+                                    dis_ap = np.sqrt((float(ap_x - ii)) ** 2 + (float(ap_y - jj)) ** 2)
+                                    data.append([dis_ij, dis_ap])
+                                    label.append(ans[ii][jj])
+                        ans[i][j] = reg_cal(data=data, label=label, test=[[i, j]])
 
         # print(param.rsrp_map)
         # print(ap, antenna, ans.shape, ans)

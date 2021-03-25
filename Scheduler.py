@@ -1,6 +1,6 @@
 from Parameter import Parameter
 from Environment import Environment
-from MADDPG import MADDPG
+from Algorithm import Algorithm
 from DataProcessing import DataProcessing
 import numpy as np
 import torch as th
@@ -18,7 +18,8 @@ dp = DataProcessing(param=param)
 
 n_agents = param.M * 3
 
-def run_simulation():
+def run_simulation(RL):
+    RL.load_networks()
     for episode in range(maxEpisode):
         # 0. 初始化观测值
         env.reset()
@@ -110,13 +111,12 @@ if __name__ == "__main__":
 
     # 行为空间是二者之和：前一部分中的最大值为azimuth的行为，后一部分的最大值为pitch的行为
     # 观测值空间从数据预处理过程中取得
-    RL = MADDPG(n_agents=n_agents,
+    alg = Algorithm(n_agents=n_agents,
                 dim_act=env.n_azimuth_actions + env.n_pitch_actions,
                 dim_obs=dp.n_features,
                 batch_size=100,
                 capacity=100000,
                 episodes_before_train=1)
 
-    RL.load_networks()
-    env.after(1, run_simulation)
+    env.after(1, run_simulation(alg.maddpg))
     env.mainloop()
