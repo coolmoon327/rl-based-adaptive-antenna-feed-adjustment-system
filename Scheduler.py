@@ -18,7 +18,7 @@ dp = DataProcessing(param=param)
 
 n_agents = param.M * 3
 
-FloatTensor = th.FloatTensor # 会在后面更新
+FloatTensor = th.cuda.FloatTensor if th.cuda.is_available() else th.FloatTensor
 
 
 def get_obs_list():
@@ -63,7 +63,6 @@ def choose_max_index(acts):
     return index_list[i]
 
 def run_simulation(RL, algId):
-    FloatTensor = th.cuda.FloatTensor if RL.use_cuda else th.FloatTensor
     RL.load_networks()
     for episode in range(maxEpisode):
         # 0. 初始化观测值
