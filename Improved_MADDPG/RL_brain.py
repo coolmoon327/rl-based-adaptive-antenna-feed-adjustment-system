@@ -152,8 +152,8 @@ class MADDPG:
 
     def load_networks(self):
         try:
-            actor_data = th.load('data/actor_net_params.pkl')
-            critic_data = th.load('data/critic_net_params.pkl')
+            actor_data = th.load('data/actor_net_params_1.pkl')
+            critic_data = th.load('data/critic_net_params_1.pkl')
         except IOError:
             print("Error: 没有找到文件或读取文件失败")
         else:
@@ -173,5 +173,5 @@ class MADDPG:
         for net in self.critics:
             state_dict = net.state_dict()
             critic_data.append(state_dict)
-        th.save(actor_data, 'data/actor_net_params.pkl')
-        th.save(critic_data, 'data/critic_net_params.pkl')
+        th.save(actor_data, 'data/actor_net_params_1.pkl')
+        th.save(critic_data, 'data/critic_net_params_1.pkl')

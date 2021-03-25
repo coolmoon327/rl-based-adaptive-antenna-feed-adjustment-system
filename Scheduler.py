@@ -18,67 +18,81 @@ dp = DataProcessing(param=param)
 
 n_agents = param.M * 3
 
-def run_simulation(RL):
+FloatTensor = th.FloatTensor # 会在后面更新
+
+
+def get_obs_list():
+    obs_ = []
+    for ap in range(param.M):
+        for antenna in range(3):
+            dp.set_agent(ap=ap, antenna=antenna)
+            obs = dp.normalize_potential_coverage_observation()
+            obs_.append(obs)
+    return obs_
+
+
+def get_reward_list():
+    reward = []
+    for ap in range(param.M):
+        for antenna in range(3):
+            dp.set_agent(ap=ap, antenna=antenna)
+            agent_reward = dp.cal_reward()
+            reward.append(agent_reward)
+    return reward
+
+
+def floatTensor_from_list(x):
+    x = np.stack(x)
+    x = th.FloatTensor(x).type(FloatTensor)
+    return x
+
+
+def choose_max_index(acts):
+    acts = acts.numpy()
+    # 随机选择value最高的一个元素，返回其index
+    index_list = []
+    maxx = -1.e6
+    for i in range(len(acts)):
+        act = acts[i]
+        if maxx == act:
+            index_list += [i]
+        elif maxx < act:
+            maxx = act
+            index_list = [i]
+    i = np.random.randint(0, len(index_list))
+    return index_list[i]
+
+def run_simulation(RL, algId):
+    FloatTensor = th.cuda.FloatTensor if RL.use_cuda else th.FloatTensor
     RL.load_networks()
     for episode in range(maxEpisode):
         # 0. 初始化观测值
         env.reset()
-        obs = []
-        for ap in range(param.M):
-            for antenna in range(3):
-                dp.set_agent(ap=ap, antenna=antenna)
-                agent_obs = dp.normalize_potential_coverage_observation()
-                obs.append(agent_obs)
-        obs = np.stack(obs)
-        # if isinstance(obs, np.ndarray):
-        obs = th.from_numpy(obs).float()
-        # if obs.dim() == 1:
-        #     obs = obs.unsqueeze(dim=0)
+        obs = get_obs_list()
+        obs = floatTensor_from_list(obs)
 
-        FloatTensor = th.cuda.FloatTensor if RL.use_cuda else th.FloatTensor
         for step in range(maxStep):
             if episode >= 0:
                 env.isRender = True
                 env.render()
 
             # 1. 预测出所有agents的actions
-            obs = obs.type(FloatTensor)
             act = RL.select_action(obs).data.cpu()
 
             # 2. 执行actions
-            obs_ = []
-            reward = []
             for ap in range(param.M):
                 for antenna in range(3):
                     index = ap * 3 + antenna
                     agent_act = act[index]
-                    azimuth_index = th.argmax(agent_act[0: env.n_azimuth_actions]).numpy()
-                    azimuth_act = env.azimuth_action_space[azimuth_index]
-                    pitch_index = th.argmax(agent_act[env.n_azimuth_actions:
-                                                    env.n_azimuth_actions + env.n_pitch_actions]).numpy()
-                    pitch_act = env.pitch_action_space[pitch_index]
-
+                    azimuth_act = env.azimuth_action_space[choose_max_index(agent_act[0: env.n_azimuth_actions])]
+                    pitch_act = env.pitch_action_space[choose_max_index(agent_act[env.n_azimuth_actions:
+                                                                        env.n_azimuth_actions + env.n_pitch_actions])]
                     env.step(ap=ap, antenna=antenna, azimuth_act=azimuth_act, pitch_act=pitch_act)
 
-                    dp.set_agent(ap=ap, antenna=antenna)
-                    agent_obs = dp.normalize_potential_coverage_observation()
-                    obs_.append(agent_obs)
-                    agent_reward = dp.cal_reward()
-                    reward.append(agent_reward)
+            reward = floatTensor_from_list(get_reward_list())
+            obs_ = floatTensor_from_list(get_obs_list())
 
-            reward = np.stack(reward)
-            # reward = th.from_numpy(reward).float()
-            reward = th.FloatTensor(reward).type(FloatTensor)
-            # if reward.dim() == 1:
-            #     reward = reward.unsqueeze(dim=0)
-
-            obs_ = np.stack(obs_)
-            # obs_ = th.from_numpy(obs_).float()
-            obs_ = th.FloatTensor(obs_).type(FloatTensor)
-            # if obs_.dim() == 1:
-            #     obs_ = obs_.unsqueeze(dim=0)
-
-            RL.memory.push(obs, act, obs_, reward)
+            RL.memory.push(obs.cpu(), act, obs_.cpu(), reward.cpu())
             RL.update_policy()
 
             step += 1
@@ -113,11 +127,11 @@ if __name__ == "__main__":
     # 行为空间是二者之和：前一部分中的最大值为azimuth的行为，后一部分的最大值为pitch的行为
     # 观测值空间从数据预处理过程中取得
     alg = Algorithm(n_agents=n_agents,
-                dim_act=env.n_azimuth_actions + env.n_pitch_actions,
-                dim_obs=dp.n_features,
-                batch_size=100,
-                capacity=100000,
-                episodes_before_train=1)
+                    dim_act=env.n_azimuth_actions + env.n_pitch_actions,
+                    dim_obs=dp.n_features,
+                    batch_size=100,
+                    capacity=100000,
+                    episodes_before_train=1)
 
-    env.after(1, run_simulation(alg.maddpg))
+    env.after(1, run_simulation(alg.maddpg_0, 0))
     env.mainloop()
