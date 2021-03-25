@@ -102,6 +102,7 @@ if __name__ == "__main__":
     #     ttRSRP = np.sum(param.rsrp_map)
     #     if maxx < ttRSRP:
     #         maxx = ttRSRP
+    #         filename = f'map_{M}_{xSize}_{ySize}_{interval}.npz'
     #         param.saveMap(filename=filename)
 
     # 进行仿真
