@@ -153,8 +153,8 @@ class DataProcessing(object):
                     if ans[i][j] == -200.:
                         data = []
                         label = []
-                        for ii in range(max(0, i-5), min(self.param.xSize, i+5)):
-                            for jj in range(max(0, j-5), min(self.param.ySize, j+5)):
+                        for ii in range(max(0, i-5), min(azimuth_sample_num, i+5)):
+                            for jj in range(max(0, j-5), min(pitch_samples_num, j+5)):
                                 if ans[ii][jj] != -200.:
                                     dis_ij = np.sqrt((float(i-ii))**2 + (float(j-jj))**2)
                                     dis_ap = np.sqrt((float(ap_x - ii)) ** 2 + (float(ap_y - jj)) ** 2)

@@ -5,7 +5,7 @@ from DataProcessing import DataProcessing
 import numpy as np
 import torch as th
 
-M = 5
+M = 4
 interval = 10
 xSize = 30
 ySize = 30

@@ -1,12 +1,12 @@
-from model import Critic, Actor
+from .model import Critic, Actor
 import torch as th
 from copy import deepcopy
-from memory import ReplayMemory, Experience
+from .memory import ReplayMemory, Experience
 from torch.optim import Adam
 # from randomProcess import OrnsteinUhlenbeckProcess
 import torch.nn as nn
 import numpy as np
-from params import scale_reward
+from .params import scale_reward
 
 
 def soft_update(target, source, t):
@@ -144,7 +144,6 @@ class MADDPG:
             if self.episode_done > self.episodes_before_train and self.var[i] > 0.05:
                 self.var[i] *= 0.999998
             # act = th.clamp(act, -1.0, 1.0)
-            act = th.softmax(act)
 
             actions[i, :] = act
         self.steps_done += 1
