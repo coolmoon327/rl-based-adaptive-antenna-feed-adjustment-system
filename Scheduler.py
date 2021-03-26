@@ -79,20 +79,27 @@ def run_simulation(RL, algId):
             act = RL.select_action(obs).data.cpu()
 
             # 2. 执行actions
-            for ap in range(param.M):
-                for antenna in range(3):
-                    index = ap * 3 + antenna
-                    agent_act = act[index]
-                    azimuth_act = env.azimuth_action_space[choose_max_index(agent_act[0: env.n_azimuth_actions])]
-                    pitch_act = env.pitch_action_space[choose_max_index(agent_act[env.n_azimuth_actions:
-                                                                        env.n_azimuth_actions + env.n_pitch_actions])]
-                    env.step(ap=ap, antenna=antenna, azimuth_act=azimuth_act, pitch_act=pitch_act)
+            param.set_point()
+            while 1:
+                for ap in range(param.M):
+                    for antenna in range(3):
+                        index = ap * 3 + antenna
+                        agent_act = act[index]
+                        azimuth_act = env.azimuth_action_space[choose_max_index(agent_act[0: env.n_azimuth_actions])]
+                        pitch_act = env.pitch_action_space[choose_max_index(agent_act[env.n_azimuth_actions:
+                                                                            env.n_azimuth_actions + env.n_pitch_actions])]
+                        env.step(ap=ap, antenna=antenna, azimuth_act=azimuth_act, pitch_act=pitch_act)
 
-            reward = floatTensor_from_list(get_reward_list())
-            obs_ = floatTensor_from_list(get_obs_list())
+                reward = floatTensor_from_list(get_reward_list()) + param.uncovered_count*(-10.)
+                obs_ = floatTensor_from_list(get_obs_list())
 
-            RL.memory.push(obs.cpu(), act, obs_.cpu(), reward.cpu())
-            RL.update_policy()
+                RL.memory.push(obs.cpu(), act, obs_.cpu(), reward.cpu())
+                RL.update_policy()
+
+                if param.uncovered_count <= max(1, 50-episode):
+                    break
+                else:
+                    param.go_back_to_point()
 
             step += 1
             print(f"Episode {RL.episode_done} Setp {step} Total RSRP {dp.cal_total_reward()}")
@@ -128,7 +135,7 @@ if __name__ == "__main__":
     alg = Algorithm(n_agents=n_agents,
                     dim_act=env.n_azimuth_actions + env.n_pitch_actions,
                     dim_obs=dp.n_features,
-                    batch_size=100,
+                    batch_size=1000,
                     capacity=100000,
                     episodes_before_train=1)
 

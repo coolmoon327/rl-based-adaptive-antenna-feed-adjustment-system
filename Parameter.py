@@ -1,4 +1,5 @@
 import numpy as np
+import copy
 
 '''注意点：
 1. AP的位置在生成的时候需要注意离边界有充足的距离，以便缓解状态统一性问题
@@ -40,6 +41,9 @@ class Parameter(object):
         '''覆盖数据'''
         self.rsrp_map = np.array([[0. for _ in range(self.ySize)] for _ in range(self.xSize)])
         # 地图上某一点的RSRP值rsrpMap[x][y]
+        self.uncovered_count = 0        # 用来记录一次更新后地图中没有被覆盖到的点数，在env的step和reset中更新
+
+        self.point = []     # 保存点，用于保存某个时刻的天面状态
 
         self.init_parameters()
 
@@ -169,3 +173,15 @@ class Parameter(object):
     def saveMap(self, filename: str):
         np.savez('data/'+filename, self.AP_loc)
         print('Success to save map!\n')
+
+    '''设置一个保存点'''
+    def set_point(self):
+        self.point = [copy.deepcopy(self.antenna_horizontal_angle), copy.deepcopy(self.antenna_vertical_angle)]
+
+    '''从保存点中加载'''
+    def go_back_to_point(self):
+        if len(self.point) == 0:
+            print("there is no point")
+        else:
+            self.antenna_horizontal_angle  = self.point[0]
+            self.antenna_vertical_angle = self.point[1]

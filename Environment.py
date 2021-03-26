@@ -54,31 +54,6 @@ class Environment(tk.Tk, object):
             self.param.generate_AP_Map()
         # 初始化覆盖地图
         covered_map, self.param.rsrp_map = self.cal_covered_map()
-        # # 构建地图
-        # self._build_map_canvas()
-
-    # def _build_map_canvas(self):
-    #     MAZE_H = self.param.ySize
-    #     MAZE_W = self.param.xSize
-    #     self.canvas = tk.Canvas(self, bg='white',
-    #                             height=MAZE_H * UNIT,
-    #                             width=MAZE_W * UNIT)
-        # # create grids
-        # for c in range(0, MAZE_W * UNIT, UNIT):
-        #     x0, y0, x1, y1 = c, 0, c, MAZE_H * UNIT
-        #     self.canvas.create_line(x0, y0, x1, y1)
-        # for r in range(0, MAZE_H * UNIT, UNIT):
-        #     x0, y0, x1, y1 = 0, r, MAZE_W * UNIT, r
-        #     self.canvas.create_line(x0, y0, x1, y1)
-
-        # if self.isRender:
-        #     # 绘制每个点的信号强度
-        #     self.draw_RSSI_graph()
-        #     # 绘制基站
-        #     self.draw_AP_Loc(ap=-1)
-        #
-        #     self.canvas.pack()
-        #     # self.mainloop()
 
     '''绘制地图上每个方格的RSSI颜色
     [-65, +∞):    蓝色   #0005F6
@@ -207,6 +182,7 @@ class Environment(tk.Tk, object):
     '''
     def cal_covered_map(self):
         param = self.param
+        param.uncovered_count = 0
         M = param.M
         # 记录每个点有多少基站覆盖，covered_map[x][y]记录一个点上能够接收到信号的所有基站编号
         # 只需要记录基站而不需要天面，因为只用得到基站要与点之间的距离参数
@@ -269,6 +245,7 @@ class Environment(tk.Tk, object):
                 covered_num = len(covered_map[x][y])
                 if covered_num == 0:
                     level = 7
+                    param.uncovered_count += 1
                 else:
                     level = 1   # 最低1: -65, 最高6: -115
                     for k in range(max(0, covered_num-1)):
