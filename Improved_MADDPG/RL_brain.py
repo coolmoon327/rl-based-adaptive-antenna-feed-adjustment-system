@@ -63,7 +63,7 @@ class MADDPG:
 
     def update_policy(self):
         # do not train until exploration is enough
-        if self.episode_done <= self.episodes_before_train:
+        if self.episode_done <= self.episodes_before_train or len(self.memory) <= self.batch_size:
             return None, None
 
         ByteTensor = th.cuda.ByteTensor if self.use_cuda else th.ByteTensor
