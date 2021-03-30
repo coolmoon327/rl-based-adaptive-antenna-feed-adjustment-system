@@ -97,7 +97,8 @@ def run_simulation(RL, algId):
                                                                             env.n_azimuth_actions + env.n_pitch_actions])]
                         env.step(ap=ap, antenna=antenna, azimuth_act=azimuth_act, pitch_act=pitch_act)
 
-                if param.uncovered_count <= max(10, last_uncovered_count):
+                max_uncovered_num = max(5, 150-episode)
+                if param.uncovered_count <= max(max_uncovered_num, last_uncovered_count):
                     break
                 else:
                     param.go_back_to_point()
