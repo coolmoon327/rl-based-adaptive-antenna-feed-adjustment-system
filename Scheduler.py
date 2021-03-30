@@ -36,7 +36,7 @@ def get_reward_list():
     for ap in range(param.M):
         for antenna in range(3):
             dp.set_agent(ap=ap, antenna=antenna)
-            agent_reward = dp.cal_reward()
+            agent_reward = dp.cal_reward() - 10 * dp.cal_uncovered_num()
             reward.append(agent_reward)
     return reward
 
@@ -80,7 +80,7 @@ def run_simulation(RL, algId):
 
             # 2. 执行actions
             param.set_point()
-            last_uncovered_count = param.uncovered_count
+            last_uncovered_count = dp.cal_total_uncovered_num()
             for cc in range(100):
                 for ap in range(param.M):
                     for antenna in range(3):
@@ -98,19 +98,19 @@ def run_simulation(RL, algId):
                         env.step(ap=ap, antenna=antenna, azimuth_act=azimuth_act, pitch_act=pitch_act)
 
                 max_uncovered_num = max(5, 150-episode)
-                if param.uncovered_count <= max(max_uncovered_num, last_uncovered_count):
+                if dp.cal_total_uncovered_num() <= max(max_uncovered_num, last_uncovered_count):
                     break
                 else:
                     param.go_back_to_point()
 
-            reward = floatTensor_from_list(get_reward_list()) + min(0, param.uncovered_count - last_uncovered_count) * (-10.)
+            reward = floatTensor_from_list(get_reward_list())
             obs_ = floatTensor_from_list(get_obs_list())
 
             RL.memory.push(obs.cpu(), act, obs_.cpu(), reward.cpu())
             RL.update_policy()
 
             step += 1
-            print(f"Episode {RL.episode_done} Setp {step} Total RSRP {dp.cal_total_reward()} Uncovered Number {param.uncovered_count}")
+            print(f"Episode {RL.episode_done} Setp {step} Total RSRP {dp.cal_total_reward()} Uncovered Number {dp.cal_total_uncovered_num()}")
 
         RL.episode_done += 1
         if RL.episode_done % 3 == 2:

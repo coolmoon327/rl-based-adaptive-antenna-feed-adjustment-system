@@ -28,6 +28,7 @@ class DataProcessing(object):
         self.azimuth_sample_num = 12
         self.n_features = self.pitch_samples_num * self.azimuth_sample_num + 2
         self.pcovers = []
+        self.pcovers_cache = [[None for _ in range(3)] for _ in range(self.param.M)]
 
         self.set_agent(ap=ap, antenna=antenna)
 
@@ -35,7 +36,9 @@ class DataProcessing(object):
     def set_agent(self, ap: int, antenna: int):
         self.ap = ap
         self.antenna = antenna
-        self.pcovers = self.param.cal_potential_coverage(ap=ap, antenna=antenna)
+        if self.pcovers_cache[ap][antenna] is None:
+            self.pcovers_cache[ap][antenna] = self.param.cal_potential_coverage(ap=ap, antenna=antenna)
+        self.pcovers = self.pcovers_cache[ap][antenna]
 
     '''归一化潜在覆盖地图
         :return ans: 返回归一化后的潜在覆盖地图
@@ -213,3 +216,19 @@ class DataProcessing(object):
                 elif rsrp == 7:
                     ans += -8
         return ans / (self.param.xSize * self.param.ySize)
+
+    '''计算该AP潜在覆盖区域内未覆盖到的格子数'''
+    def cal_uncovered_num(self):
+        uncovered_num = 0
+        for x, y in self.pcovers:
+            if len(self.param.covered_map[x][y]) == 0:
+                uncovered_num += 1
+        return uncovered_num
+
+    def cal_total_uncovered_num(self):
+        uncovered_num = 0
+        for x in range(self.param.xSize):
+            for y in range(self.param.ySize):
+                if len(self.param.covered_map[x][y]) == 0:
+                    uncovered_num += 1
+        return uncovered_num

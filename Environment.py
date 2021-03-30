@@ -53,7 +53,7 @@ class Environment(tk.Tk, object):
             print("Warning: 未初始化AP分布地图，将进行随机生成！")
             self.param.generate_AP_Map()
         # 初始化覆盖地图
-        covered_map, self.param.rsrp_map = self.cal_covered_map()
+        self.param.covered_map, self.param.rsrp_map = self.cal_covered_map()
 
     '''绘制地图上每个方格的RSSI颜色
     [-65, +∞):    蓝色   #0005F6
@@ -158,7 +158,8 @@ class Environment(tk.Tk, object):
         # if self.isRender:
         #     self.render(ap=ap)
 
-        self.param.rsrp_map =copy.deepcopy(rsrp_map)
+        self.param.covered_map = copy.deepcopy(covered_map)
+        self.param.rsrp_map = copy.deepcopy(rsrp_map)
         return rsrp_map.reshape((1, -1))[0]
 
     def render(self, ap=-1):
@@ -182,7 +183,6 @@ class Environment(tk.Tk, object):
     '''
     def cal_covered_map(self):
         param = self.param
-        param.uncovered_count = 0
         M = param.M
         # 记录每个点有多少基站覆盖，covered_map[x][y]记录一个点上能够接收到信号的所有基站编号
         # 只需要记录基站而不需要天面，因为只用得到基站要与点之间的距离参数
@@ -245,7 +245,6 @@ class Environment(tk.Tk, object):
                 covered_num = len(covered_map[x][y])
                 if covered_num == 0:
                     level = 7
-                    param.uncovered_count += 1
                 else:
                     level = 1   # 最低1: -65, 最高6: -115
                     for k in range(max(0, covered_num-1)):

@@ -41,7 +41,7 @@ class Parameter(object):
         '''覆盖数据'''
         self.rsrp_map = np.array([[0. for _ in range(self.ySize)] for _ in range(self.xSize)])
         # 地图上某一点的RSRP值rsrpMap[x][y]
-        self.uncovered_count = 0        # 用来记录一次更新后地图中没有被覆盖到的点数，在env的step和reset中更新
+        self.covered_map = [[[] for _ in range(self.ySize)] for _ in range(self.xSize)]
 
         self.point = []     # 保存点，用于保存某个时刻的天面状态
 
