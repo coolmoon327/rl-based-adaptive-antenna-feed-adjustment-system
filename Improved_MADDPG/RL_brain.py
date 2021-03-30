@@ -23,16 +23,16 @@ def hard_update(target, source):
 
 
 class MADDPG:
-    def __init__(self, n_agents, dim_obs, dim_act, batch_size,
+    def __init__(self, n_agents, dim_obs, dim_obs_critic, dim_act, batch_size,
                  capacity, episodes_before_train):
         self.actors = [Actor(dim_obs, dim_act) for i in range(n_agents)]
-        self.critics = [Critic(n_agents, dim_obs,
-                               dim_act) for i in range(n_agents)]
+        self.critics = [Critic(n_agents, dim_obs_critic, dim_act) for i in range(n_agents)]
         self.actors_target = deepcopy(self.actors)
         self.critics_target = deepcopy(self.critics)
 
         self.n_agents = n_agents
         self.n_states = dim_obs
+        self.n_states_critic = dim_obs_critic           # 也就是整张地图的xSize*ySize
         self.n_actions = dim_act
         self.memory = ReplayMemory(capacity)
         self.batch_size = batch_size
@@ -72,49 +72,61 @@ class MADDPG:
         c_loss = []
         a_loss = []
         for agent in range(self.n_agents):
+            # 1. 采样出一批记忆
             transitions = self.memory.sample(self.batch_size)
             batch = Experience(*zip(*transitions))
             non_final_mask = ByteTensor(list(map(lambda s: s is not None, batch.next_states))).bool()
+            # 从记忆batch中提取出5类数据
             # state_batch: batch_size x n_agents x dim_obs
             state_batch = th.stack(batch.states).type(FloatTensor)
             action_batch = th.stack(batch.actions).type(FloatTensor)
             reward_batch = th.stack(batch.rewards).type(FloatTensor)
+            map_batch = th.stack(batch.map_states).type(FloatTensor)        # map后面的数据包含所有天面的角度信息
             # : (batch_size_non_final) x n_agents x dim_obs
             non_final_next_states = th.stack([s for s in batch.next_states if s is not None]).type(FloatTensor)
+            non_final_next_map = th.stack([s for s in batch.next_map_states if s is not None]).type(FloatTensor)
 
+            # 2. 用Critic现实网络（新）计算该map下采取whole_action的R_1（使用map作为Critic的状态）
             # for current agent
             whole_state = state_batch.view(self.batch_size, -1)
             whole_action = action_batch.view(self.batch_size, -1)
+            whole_map = map_batch.view(self.batch_size, -1)
             self.critic_optimizer[agent].zero_grad()
-            current_Q = self.critics[agent](whole_state, whole_action)
+            current_Q = self.critics[agent](whole_map, whole_action)
 
-            non_final_next_actions = [
-                self.actors_target[i](non_final_next_states[:, i, :]) for i in range(self.n_agents)]
+            # 3. 用Actor目标网络（旧）计算下一个状态下应该采取的Action（使用Observation作为Actor的状态）
+            non_final_next_actions = [self.actors_target[i](non_final_next_states[:, i, :]) for i in range(self.n_agents)]
             non_final_next_actions = th.stack(non_final_next_actions)
             non_final_next_actions = (non_final_next_actions.transpose(0, 1).contiguous())
             # 0和1转置，即两维度互换，agents是第0维
 
+            # 4. 用Critic目标网络（旧）计算下一个map下采取上述action的R_2（使用map作为Critic的状态）
             target_Q = th.zeros(self.batch_size).type(FloatTensor)
-
             target_Q[non_final_mask] = self.critics_target[agent](
-                non_final_next_states.view(-1, self.n_agents * self.n_states),
+                non_final_next_map.view(-1, self.n_states_critic),
                 non_final_next_actions.view(-1, self.n_agents * self.n_actions)
             ).squeeze()
             # scale_reward: to scale reward in Q functions
 
+            # 5. 用基于值的TD思想得到该map下采取whole_action该有的R_true（gamma * R_2 + reward）
             target_Q = (target_Q.unsqueeze(1) * self.GAMMA) + (reward_batch[:, agent].unsqueeze(1) * scale_reward)
 
+            # 6. 反向传递：让Q现实网络的预测值R_1逼近R_true
             loss_Q = nn.MSELoss()(current_Q, target_Q.detach())
             loss_Q.backward()
             self.critic_optimizer[agent].step()
 
+            # 7. 通过最大化Critic网络的输出来更新Actor网络
             self.actor_optimizer[agent].zero_grad()
             state_i = state_batch[:, agent, :]
+            # 7.1 用Actor现实网络（新）计算当前状态下的Action_i
             action_i = self.actors[agent](state_i)
+            # 7.2 用新计算的Action_i替换记忆batch中行为体i旧的action
             ac = action_batch.clone()
             ac[:, agent, :] = action_i
             whole_action = ac.view(self.batch_size, -1)
-            actor_loss = -self.critics[agent](whole_state, whole_action)
+            # 7.3 用Critic现实网络（新）计算最新的R作为Actor的优化目标（最大化R）
+            actor_loss = -self.critics[agent](whole_map, whole_action)
             actor_loss = actor_loss.mean()
             actor_loss.backward()
             self.actor_optimizer[agent].step()

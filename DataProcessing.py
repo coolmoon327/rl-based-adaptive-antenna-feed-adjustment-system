@@ -182,6 +182,25 @@ class DataProcessing(object):
 
         return ret
 
+    def get_total_antenna_angles(self):
+        # 返回一个一维list，包含所有天面的角度\
+        ans = []
+        param = self.param
+        for ap in range(param.M):
+            for antenna in range(3):
+                # 获取归一化的方位角和俯仰角
+                # 1 (方位角 - 最小边界) / 总可调角度范围
+                ha = param.antenna_horizontal_angle[ap][antenna]
+                hab = param.antenna_horizontal_angle_bound[ap][antenna]
+                nh = (ha - hab[0] + 360) % 360 / ((hab[1] - hab[0] + 360) % 360)
+                # 2 (俯仰角 - 最小边界) / 总可调角度范围
+                va = param.antenna_vertical_angle[ap][antenna]
+                vab = param.antenna_veritical_angle_bound[ap][antenna]
+                nv = (va - vab[0] + 360) % 360 / ((vab[1] - vab[0] + 360) % 360)
+                ans += [nh, nv]
+        return np.array(ans)
+
+
     '''计算潜在覆盖地图的reward
         :return ans: 返回归一化后的潜在覆盖地图
         '''

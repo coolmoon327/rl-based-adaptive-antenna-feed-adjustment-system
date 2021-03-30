@@ -75,12 +75,15 @@ def run_simulation(RL, algId):
                 env.isRender = True
                 env.render()
 
+            last_uncovered_count = dp.cal_total_uncovered_num()
+            last_map = param.rsrp_map
+            last_antenna_angles = dp.get_total_antenna_angles()
+
             # 1. 预测出所有agents的actions
             act = RL.select_action(obs).data.cpu()
 
             # 2. 执行actions
             param.set_point()
-            last_uncovered_count = dp.cal_total_uncovered_num()
             for cc in range(100):
                 for ap in range(param.M):
                     for antenna in range(3):
@@ -106,7 +109,15 @@ def run_simulation(RL, algId):
             reward = floatTensor_from_list(get_reward_list())
             obs_ = floatTensor_from_list(get_obs_list())
 
-            RL.memory.push(obs.cpu(), act, obs_.cpu(), reward.cpu())
+            if algId == 0:
+                RL.memory.push(obs.cpu(), act, obs_.cpu(), reward.cpu())
+            elif algId == 1:
+                obs_critic = floatTensor_from_list(np.append(last_map.reshape(-1), last_antenna_angles))
+
+                obs_critic_ = floatTensor_from_list(np.append(param.rsrp_map.reshape(-1), dp.get_total_antenna_angles()))
+                RL.memory.push(obs.cpu(), obs_critic, act, obs_.cpu(), obs_critic_, reward.cpu())
+                # map中其实包含所有天面的俯仰角和方位角，和地图信息一起在一个一维空间里
+
             RL.update_policy()
 
             step += 1
@@ -143,9 +154,11 @@ if __name__ == "__main__":
     alg = Algorithm(n_agents=n_agents,
                     dim_act=env.n_azimuth_actions + env.n_pitch_actions,
                     dim_obs=dp.n_features,
+                    dim_obs_critic=param.xSize*param.ySize+param.M*3*2,
                     batch_size=1000,
                     capacity=100000,
-                    episodes_before_train=1)
+                    episodes_before_train=-1)
 
-    env.after(1, run_simulation(alg.maddpg_0, 0))
+    # env.after(1, run_simulation(alg.maddpg_0, 0))
+    env.after(1, run_simulation(alg.maddpg_1, 1))
     env.mainloop()
