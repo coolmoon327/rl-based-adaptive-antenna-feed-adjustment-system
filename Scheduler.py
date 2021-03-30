@@ -5,7 +5,7 @@ from DataProcessing import DataProcessing
 import numpy as np
 import torch as th
 
-M = 4
+M = 5
 interval = 10
 xSize = 30
 ySize = 30
@@ -81,10 +81,16 @@ def run_simulation(RL, algId):
             # 2. 执行actions
             param.set_point()
             last_uncovered_count = param.uncovered_count
-            while 1:
+            for cc in range(100):
                 for ap in range(param.M):
                     for antenna in range(3):
                         index = ap * 3 + antenna
+                        if np.random.randint(0, 5) == 0:
+                            # 五分之一的概率不执行任何操作
+                            act[index][10] = 1.
+                            act[index][10+env.n_azimuth_actions] = 1.
+                            continue
+
                         agent_act = act[index]
                         azimuth_act = env.azimuth_action_space[choose_max_index(agent_act[0: env.n_azimuth_actions])]
                         pitch_act = env.pitch_action_space[choose_max_index(agent_act[env.n_azimuth_actions:
@@ -96,14 +102,14 @@ def run_simulation(RL, algId):
                 else:
                     param.go_back_to_point()
 
-            reward = floatTensor_from_list(get_reward_list()) + param.uncovered_count * (-10.)
+            reward = floatTensor_from_list(get_reward_list()) + min(0, param.uncovered_count - last_uncovered_count) * (-10.)
             obs_ = floatTensor_from_list(get_obs_list())
 
             RL.memory.push(obs.cpu(), act, obs_.cpu(), reward.cpu())
             RL.update_policy()
 
             step += 1
-            print(f"Episode {RL.episode_done} Setp {step} Total RSRP {dp.cal_total_reward()}")
+            print(f"Episode {RL.episode_done} Setp {step} Total RSRP {dp.cal_total_reward()} Uncovered Number {param.uncovered_count}")
 
         RL.episode_done += 1
         if RL.episode_done % 3 == 2:
