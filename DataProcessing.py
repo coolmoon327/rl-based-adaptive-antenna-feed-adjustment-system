@@ -26,7 +26,7 @@ class DataProcessing(object):
         self.pitch_group_samples_num = 3   # 每组样本数
         self.pitch_samples_num = self.pitch_groups_num * self.pitch_group_samples_num    # 总样本点数
         self.azimuth_sample_num = 12
-        self.n_features = self.pitch_samples_num * self.azimuth_sample_num
+        self.n_features = self.pitch_samples_num * self.azimuth_sample_num + 2
         self.pcovers = []
 
         self.set_agent(ap=ap, antenna=antenna)
@@ -165,7 +165,19 @@ class DataProcessing(object):
         # print(param.rsrp_map)
         # print(ap, antenna, ans.shape, ans)
 
-        return ans.reshape(-1)
+        # 5. 获取归一化的方位角和俯仰角
+        # 5.1 (方位角 - 最小边界) / 总可调角度范围
+        ha = param.antenna_horizontal_angle[ap][antenna]
+        hab = param.antenna_horizontal_angle_bound[ap][antenna]
+        nh = (ha - hab[0] + 360) % 360 / ((hab[1] - hab[0] + 360) % 360)
+        # 5.2 (俯仰角 - 最小边界) / 总可调角度范围
+        va = param.antenna_vertical_angle[ap][antenna]
+        vab = param.antenna_veritical_angle_bound[ap][antenna]
+        nv = (va - vab[0] + 360) % 360 / ((vab[1] - vab[0] + 360) % 360)
+
+        ret = np.append(ans.reshape(-1), [nh, nv])
+
+        return ret
 
     '''计算潜在覆盖地图的reward
         :return ans: 返回归一化后的潜在覆盖地图
