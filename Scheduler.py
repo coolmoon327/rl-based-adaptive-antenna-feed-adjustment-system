@@ -18,8 +18,8 @@ dp = DataProcessing(param=param)
 
 n_agents = param.M * 3
 
-FloatTensor = th.cuda.FloatTensor if th.cuda.is_available() else th.FloatTensor
-
+# FloatTensor = th.cuda.FloatTensor if th.cuda.is_available() else th.FloatTensor
+FloatTensor = th.FloatTensor
 
 def get_obs_list():
     obs_ = []
@@ -36,7 +36,7 @@ def get_reward_list():
     for ap in range(param.M):
         for antenna in range(3):
             dp.set_agent(ap=ap, antenna=antenna)
-            agent_reward = dp.cal_reward() - 10 * dp.cal_uncovered_num()
+            agent_reward = dp.cal_reward() - 50 * dp.cal_uncovered_num()
             reward.append(agent_reward)
     return reward
 
@@ -71,7 +71,7 @@ def run_simulation(RL, algId):
         obs = floatTensor_from_list(obs)
 
         for step in range(maxStep):
-            if episode >= 0:
+            if episode >= 100:
                 env.isRender = True
                 env.render()
 
@@ -79,16 +79,17 @@ def run_simulation(RL, algId):
             last_map = param.rsrp_map
             last_antenna_angles = dp.get_total_antenna_angles()
 
-            # 1. 预测出所有agents的actions
-            act = RL.select_action(obs).data.cpu()
-
-            # 2. 执行actions
             param.set_point()
             for cc in range(100):
+                # 1. 预测出所有agents的actions
+                act = RL.select_action(obs).data.cpu()
+
+                # 2. 执行actions
                 for ap in range(param.M):
                     for antenna in range(3):
                         index = ap * 3 + antenna
-                        if np.random.randint(0, 5) == 0:
+                        dp.set_agent(ap, antenna)
+                        if np.random.randint(0, 5) == 0: # or dp.cal_uncovered_num() == 0:
                             # 五分之一的概率不执行任何操作
                             act[index][10] = 1.
                             act[index][10+env.n_azimuth_actions] = 1.
@@ -100,8 +101,8 @@ def run_simulation(RL, algId):
                                                                             env.n_azimuth_actions + env.n_pitch_actions])]
                         env.step(ap=ap, antenna=antenna, azimuth_act=azimuth_act, pitch_act=pitch_act)
 
-                max_uncovered_num = max(5, 150-episode)
-                if dp.cal_total_uncovered_num() <= max(max_uncovered_num, last_uncovered_count):
+                max_uncovered_num = max(5, 100-episode/10)
+                if dp.cal_total_uncovered_num() <= max(max_uncovered_num, last_uncovered_count + 5):
                     break
                 else:
                     param.go_back_to_point()
@@ -110,12 +111,12 @@ def run_simulation(RL, algId):
             obs_ = floatTensor_from_list(get_obs_list())
 
             if algId == 0:
-                RL.memory.push(obs.cpu(), act, obs_.cpu(), reward.cpu())
+                RL.memory.push(obs, act, obs_, reward)
             elif algId == 1:
                 obs_critic = floatTensor_from_list(np.append(last_map.reshape(-1), last_antenna_angles))
 
                 obs_critic_ = floatTensor_from_list(np.append(param.rsrp_map.reshape(-1), dp.get_total_antenna_angles()))
-                RL.memory.push(obs.cpu(), obs_critic, act, obs_.cpu(), obs_critic_, reward.cpu())
+                RL.memory.push(obs, obs_critic, act, obs_, obs_critic_, reward)
                 # map中其实包含所有天面的俯仰角和方位角，和地图信息一起在一个一维空间里
 
             RL.update_policy()
@@ -124,7 +125,8 @@ def run_simulation(RL, algId):
             print(f"Episode {RL.episode_done} Setp {step} Total RSRP {dp.cal_total_reward()} Uncovered Number {dp.cal_total_uncovered_num()}")
 
         RL.episode_done += 1
-        if RL.episode_done % 3 == 2:
+        if RL.episode_done:
+            # RL.soft_load_networks()
             RL.save_networks()
 
     print("game over")
@@ -155,7 +157,7 @@ if __name__ == "__main__":
                     dim_act=env.n_azimuth_actions + env.n_pitch_actions,
                     dim_obs=dp.n_features,
                     dim_obs_critic=param.xSize*param.ySize+param.M*3*2,
-                    batch_size=1000,
+                    batch_size=100,
                     capacity=100000,
                     episodes_before_train=-1)
 

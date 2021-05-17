@@ -10,15 +10,12 @@ from .params import scale_reward
 
 
 def soft_update(target, source, t):
-    for target_param, source_param in zip(target.parameters(),
-                                          source.parameters()):
-        target_param.data.copy_(
-            (1 - t) * target_param.data + t * source_param.data)
+    for target_param, source_param in zip(target.parameters(), source.parameters()):
+        target_param.data.copy_((1 - t) * target_param.data + t * source_param.data)
 
 
 def hard_update(target, source):
-    for target_param, source_param in zip(target.parameters(),
-                                          source.parameters()):
+    for target_param, source_param in zip(target.parameters(), source.parameters()):
         target_param.data.copy_(source_param.data)
 
 
@@ -36,7 +33,8 @@ class MADDPG:
         self.n_actions = dim_act
         self.memory = ReplayMemory(capacity)
         self.batch_size = batch_size
-        self.use_cuda = th.cuda.is_available()
+        # self.use_cuda = th.cuda.is_available()
+        self.use_cuda = False
         self.episodes_before_train = episodes_before_train
 
         self.GAMMA = 0.95
@@ -154,7 +152,7 @@ class MADDPG:
                 np.random.randn(self.n_actions) * self.var[i]).type(FloatTensor)
 
             if self.episode_done > self.episodes_before_train and self.var[i] > 0.05:
-                self.var[i] *= 0.999998
+                self.var[i] *= 0.999995
             act = th.clamp(act, -1.0, 1.0)
 
             actions[i, :] = act
@@ -162,10 +160,16 @@ class MADDPG:
 
         return actions
 
-    def load_networks(self):
+    def load_networks(self, mode=0):
         try:
-            actor_data = th.load('data/actor_net_params_1.pkl')
-            critic_data = th.load('data/critic_net_params_1.pkl')
+            if mode == 0:
+                # actor_data = th.load('./data/actor_net_params_1.pkl')
+                # critic_data = th.load('./data/critic_net_params_1.pkl')
+                actor_data = th.load('./data/actor_net_params_1.pkl', map_location=th.device('cpu'))
+                critic_data = th.load('./data/critic_net_params_1.pkl', map_location=th.device('cpu'))
+            else:
+                actor_data = th.load('./data/actor_net_params_test.pkl', map_location=th.device('cpu'))
+                critic_data = th.load('./data/critic_net_params_test.pkl', map_location=th.device('cpu'))
         except IOError:
             print("Error: 没有找到文件或读取文件失败")
         else:
@@ -176,7 +180,28 @@ class MADDPG:
                 hard_update(self.critics_target[i], self.critics[i])
             print("网络参数加载成功")
 
-    def save_networks(self):
+    def soft_load_networks(self):
+        # 用于分布式同时训练
+        try:
+            # actor_data = th.load('./data/actor_net_params_1.pkl')
+            # critic_data = th.load('./data/critic_net_params_1.pkl')
+            actor_data = th.load('./data/actor_net_params_1.pkl', map_location=th.device('cpu'))
+            critic_data = th.load('./data/critic_net_params_1.pkl', map_location=th.device('cpu'))
+        except IOError:
+            print("Error: 没有找到文件或读取文件失败")
+        else:
+            for i in range(self.n_agents):
+                actor = Actor(self.n_states, self.n_actions)
+                critic = Critic(self.n_agents, self.n_states_critic, self.n_actions)
+                actor.load_state_dict(actor_data[i])
+                critic.load_state_dict(critic_data[i])
+                soft_update(self.actors[i], actor, 0.5)
+                soft_update(self.critics[i], critic, 0.5)
+                soft_update(self.critics_target[i], self.critics[i], self.tau)
+                soft_update(self.actors_target[i], self.actors[i], self.tau)
+            print("网络参数软加载成功")
+
+    def save_networks(self, mode=0):
         actor_data = []
         critic_data = []
         for net in self.actors:
@@ -185,5 +210,10 @@ class MADDPG:
         for net in self.critics:
             state_dict = net.state_dict()
             critic_data.append(state_dict)
-        th.save(actor_data, 'data/actor_net_params_1.pkl')
-        th.save(critic_data, 'data/critic_net_params_1.pkl')
+        if mode == 0:
+            th.save(actor_data, './data/actor_net_params_1.pkl', _use_new_zipfile_serialization=False)
+            th.save(critic_data, './data/critic_net_params_1.pkl', _use_new_zipfile_serialization=False)
+        else:
+            th.save(actor_data, './data/actor_net_params_test.pkl', _use_new_zipfile_serialization=False)
+            th.save(critic_data, './data/critic_net_params_test.pkl', _use_new_zipfile_serialization=False)
+        # print("网络参数保存成功")

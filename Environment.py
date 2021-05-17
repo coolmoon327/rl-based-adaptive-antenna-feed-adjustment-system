@@ -250,8 +250,11 @@ class Environment(tk.Tk, object):
                     for k in range(max(0, covered_num-1)):
                         rand = np.random.randint(0, 8)
                         if rand == 0:
-                            ladd = np.random.randint(0, max(0, 7-level))
-                            level += ladd if level < 6 else 0
+                            ladd = np.random.randint(0, min(4, 7-level))
+                            if level + ladd > 5:
+                                level = 5
+                            else:
+                                level += ladd
 
                 # 2.2 高斯采样出RSRP值
                 mu = -65. - 10.*level + np.random.randint(0, 10)
